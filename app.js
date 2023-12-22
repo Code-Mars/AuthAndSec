@@ -2,7 +2,7 @@ import 'dotenv/config'
 import express from "express";
 import bodyParser from "body-parser";
 import mongoose from "mongoose";
-import encrypt from "mongoose-encryption"
+import md5 from "md5";
 const app = express();
 
 const port = 3000;
@@ -14,11 +14,8 @@ const userSchema = new mongoose.Schema({
     password: String 
 });
 const secret = process.env.SECRET;
-userSchema.plugin(encrypt, { secret: secret, encryptedFields: ['password'] });
 
 const User = mongoose.model("User", userSchema);
-
-
 app.get("/", (req, res)=>{
     res.render("home.ejs");
 });
@@ -32,7 +29,7 @@ app.get("/secrets", (req, res)=>{
     res.render("secrets.ejs");
 });
 app.post("/register", async (req, res)=>{
-    const user=new User({username: req.body.username, password: req.body.password});
+    const user=new User({username: req.body.username, password: md5(req.body.password)});
     await user.save().then(()=>{
         res.render("secrets.ejs");
     }).catch((err)=>{
@@ -42,7 +39,7 @@ app.post("/register", async (req, res)=>{
 });
 app.post("/login", async (req, res)=>{
     await User.findOne({username:req.body.username}).then((user)=>{
-        if(user.password===req.body.password)res.render("secrets.ejs");
+        if(user.password===md5(req.body.password))res.render("secrets.ejs");
         else res.redirect("/login");
     }).catch((err)=>{
         console.log(err);
