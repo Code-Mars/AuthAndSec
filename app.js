@@ -2,7 +2,8 @@ import 'dotenv/config'
 import express from "express";
 import bodyParser from "body-parser";
 import mongoose from "mongoose";
-import md5 from "md5";
+import bcrypt from "bcryptjs";
+const saltRounds=10;
 const app = express();
 
 const port = 3000;
@@ -29,18 +30,22 @@ app.get("/secrets", (req, res)=>{
     res.render("secrets.ejs");
 });
 app.post("/register", async (req, res)=>{
-    const user=new User({username: req.body.username, password: md5(req.body.password)});
-    await user.save().then(()=>{
-        res.render("secrets.ejs");
-    }).catch((err)=>{
-        console.log(err);
-        res.redirect("/register");
+    bcrypt.hash(req.body.password, saltRounds, async(err, hash)=> {
+        const user=new User({username: req.body.username, password: hash});
+        await user.save().then(()=>{
+            res.render("secrets.ejs");
+        }).catch((err)=>{
+            console.log(err);
+            res.redirect("/register");
+        });
     });
 });
 app.post("/login", async (req, res)=>{
     await User.findOne({username:req.body.username}).then((user)=>{
-        if(user.password===md5(req.body.password))res.render("secrets.ejs");
-        else res.redirect("/login");
+        bcrypt.compare(req.body.password, user.password, function(err, match) {
+            if(match===true)res.render("secrets.ejs");
+            else res.redirect("/login");
+        });
     }).catch((err)=>{
         console.log(err);
         res.redirect("/login");
