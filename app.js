@@ -27,9 +27,10 @@ app.use(passport.session());
 mongoose.connect("mongodb://localhost:27017/Authentication");
 // mongoose.set("useCreateIndex", true);
 const userSchema = new mongoose.Schema({ 
-    username: String,
+    // username: String,
     password: String,
-    googleId: String
+    googleId: String, 
+    secret: String
 });
 userSchema.plugin(passportLocalMongoose);
 userSchema.plugin(findOrCreate);
@@ -43,8 +44,8 @@ passport.serializeUser((user, cb)=> {
     });
   });
   
-  passport.deserializeUser((id, cb)=> {
-    const user = User.findById(id).exec();
+  passport.deserializeUser(async (id, cb)=> {
+    const user = await User.findById(id).exec();
     return cb(null, user);
   });
 passport.use(new GoogleStrategy({
@@ -55,7 +56,7 @@ passport.use(new GoogleStrategy({
   },
   function(accessToken, refreshToken, profile, cb) {
     console.log(profile);
-    User.findOrCreate({ googleId: profile.id }, function (err, user) {
+    User.findOrCreate({ googleId: profile.id, username:profile.displayName}, function (err, user) {
       return cb(err, user);
     });
   }
@@ -79,9 +80,31 @@ app.get("/register", (req, res)=>{
 app.get("/login", (req, res)=>{
     res.render("login.ejs");
 });
-app.get("/secrets", (req, res)=>{
-    if(req.isAuthenticated())res.render("secrets.ejs");
+app.get("/secrets", async (req, res)=>{
+    await User.find({"secret":{$ne:null}}).exec().then((users)=>{
+        res.render("secrets.ejs", {usersWithSecrets: users});
+    }).catch((err)=>{
+        console.log(err);
+        res.render("secrets.ejs");
+    });
+});
+app.get("/submit", (req, res)=>{
+    if(req.isAuthenticated())res.render("submit.ejs");
     else res.redirect("/login");
+});
+app.post("/submit", async(req, res)=>{
+    User.findById(req.user.id).then((user)=>{
+        user.secret=req.body.secret;
+        user.save().then(()=>{
+            res.redirect("/secrets");
+        }).catch((err)=>{
+            console.log(err);
+            res.redirect("/secrets");
+        });
+    }).catch((err)=>{
+        console.log(err);
+        res.redirect("/secrets");
+    })
 });
 app.post("/register", async (req, res)=>{
     User.register({username:req.body.username, active: false}, req.body.password, (err, user)=> {
